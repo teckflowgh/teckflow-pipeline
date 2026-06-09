@@ -1,0 +1,87 @@
+name: Dagelijkse TeckFlow Video Pipeline
+
+on:
+  schedule:
+    # Elke nacht om 02:00 Brussels tijd = 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Ook manueel te starten via GitHub UI
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Pipeline starten op RunPod
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}
+          VIDEO_MODE: ${{ vars.VIDEO_MODE || 'short' }}
+        run: |
+          python3 << 'EOF'
+          import os, time, requests, json, sys
+
+          API_KEY  = os.environ["RUNPOD_API_KEY"]
+          POD_ID   = os.environ["RUNPOD_POD_ID"]
+          MODE     = os.environ.get("VIDEO_MODE", "short")
+          GQL_URL  = f"https://api.runpod.io/graphql?api_key={API_KEY}"
+
+          def gql(query):
+              r = requests.post(GQL_URL, json={"query": query}, timeout=30)
+              r.raise_for_status()
+              return r.json()
+
+          # 1. Pod starten
+          print("Pod starten...")
+          gql(f'mutation {{ podResume(input: {{podId: "{POD_ID}", gpuCount: 1}}) {{ id }} }}')
+          time.sleep(15)
+
+          # 2. Wachten tot pod klaar is
+          api_url = None
+          for _ in range(30):
+              pod = gql(f'{{ pod(input: {{podId: "{POD_ID}"}}) {{ desiredStatus runtime {{ ports {{ privatePort publicPort }} }} }} }}')
+              runtime = pod["data"]["pod"].get("runtime") or {}
+              ports = runtime.get("ports", [])
+              for p in ports:
+                  if p.get("privatePort") == 8000 and p.get("publicPort"):
+                      api_url = f"https://{POD_ID}-8000.proxy.runpod.net"
+                      break
+              if api_url:
+                  try:
+                      if requests.get(f"{api_url}/", timeout=10).status_code == 200:
+                          print(f"Pod klaar: {api_url}")
+                          break
+                  except:
+                      pass
+              print("Wachten op pod...")
+              time.sleep(20)
+
+          if not api_url:
+              print("FOUT: Pod niet gestart.")
+              sys.exit(1)
+
+          time.sleep(20)  # PM2 services opstarten
+
+          # 3. Pipeline triggeren
+          print(f"Pipeline starten (modus: {MODE})...")
+          r = requests.post(f"{api_url}/api/run", json={"mode": MODE}, timeout=30)
+          run_id = r.json().get("run_id")
+          print(f"Run ID: {run_id}")
+
+          # 4. Wachten op resultaat
+          for _ in range(90):  # max 45 min
+              time.sleep(30)
+              status = requests.get(f"{api_url}/api/status", timeout=15).json()
+              s = status.get("status", "")
+              print(f"Stage: {status.get('current_stage')} | Status: {s}")
+              if s in ("completed", "failed"):
+                  print(json.dumps(status, indent=2, ensure_ascii=False))
+                  if s == "failed":
+                      sys.exit(1)
+                  break
+
+          # 5. Pod stoppen
+          print("Pod stoppen...")
+          gql(f'mutation {{ podStop(input: {{podId: "{POD_ID}"}}) {{ id }} }}')
+          print("Klaar! Video staat op /workspace/project/output/final_video.mp4")
+          EOF

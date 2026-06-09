@@ -1,0 +1,55 @@
+# ============================================================
+# Python dependencies for the Automated Video Pipeline
+# Install order matters — install PyTorch FIRST:
+#   pip install torch==2.4.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+# Then:
+#   pip install -r requirements.txt
+# ============================================================
+
+# --- Web Framework & Server ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+
+# --- Data validation ---
+pydantic==2.8.0
+pydantic-settings==2.4.0
+
+# --- Environment & Config ---
+python-dotenv==1.0.1
+
+# --- Scheduler ---
+apscheduler==3.10.4
+
+# --- HTTP client ---
+requests==2.32.3
+httpx==0.27.2
+
+# --- Anthropic SDK (Claude Haiku for script writing) ---
+anthropic==0.34.0
+
+# --- Google APIs (YouTube Data API v3) ---
+google-api-python-client==2.143.0
+
+# --- Playwright (VidIQ scraper fallback) ---
+playwright==1.47.0
+
+# --- XTTS v2 Voice Cloning ---
+# NOTE: torch and torchaudio must already be installed (CUDA version)
+TTS==0.22.0
+
+# --- Audio processing ---
+pydub==0.25.1
+
+# --- File utilities ---
+aiofiles==24.1.0
+
+# --- Model downloads (SadTalker checkpoints from Google Drive) ---
+gdown==5.2.0
+
+# --- Stage 4: Video montage ---
+# Whisper ondertitels (open-source, gratis)
+openai-whisper
+
+# --- Logging & utilities ---
+rich==13.8.1

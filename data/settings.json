@@ -1,0 +1,33 @@
+{
+  "schedule_time": "06:00",
+  "timezone": "Europe/Brussels",
+  "topic_source": "vidiq",
+  "youtube_category_id": "28",
+  "script_language": "nl",
+  "alert_email": "",
+  "alert_webhook_url": "",
+  "cleanup_days": 7,
+  "history_max_entries": 365,
+
+  "video_mode": "short",
+
+  "short": {
+    "duration_seconds": 60,
+    "script_words": 150,
+    "format": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "platform": "shorts"
+  },
+
+  "long": {
+    "duration_minutes": 10,
+    "script_words": 1400,
+    "chapters": 4,
+    "format": "16:9",
+    "width": 1920,
+    "height": 1080,
+    "platform": "youtube",
+    "generate_metadata": true
+  }
+}

@@ -1,0 +1,48 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Pipeline outputs (large files)
+output/*.mp3
+output/*.mp4
+output/*.wav
+output/final_draft_url.txt
+
+# Logs
+logs/*.log
+
+# Model cache
+.cache/
+*.ckpt
+*.pth
+*.pt
+*.safetensors
+
+# Third-party repos (clone manually)
+third_party/SadTalker/
+third_party/Wav2Lip/
+
+# Node / Next.js
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp

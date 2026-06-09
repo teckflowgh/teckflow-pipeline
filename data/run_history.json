@@ -1,0 +1,54 @@
+[
+  {
+    "run_id": "d574ba51",
+    "started_at": "2026-06-08T10:33:07.102599+00:00",
+    "finished_at": "2026-06-08T10:33:26.715316+00:00",
+    "status": "failed",
+    "current_stage": "stage1_research",
+    "topic": null,
+    "script_preview": null,
+    "pictory_draft_url": null,
+    "stage_timings": {},
+    "error": " \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\pipeline\\stage1_research\\claude_selector.py\", line 85, in _call\n    message = client.messages.create(\n              ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_utils\\_utils.py\", line 294, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\resources\\messages\\messages.py\", line 1008, in create\n    return self._post(\n           ^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 1374, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 1064, in request\n    request = self._build_request(options, retries_taken=retries_taken)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 522, in _build_request\n    headers = self._build_headers(options, retries_taken=retries_taken)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 452, in _build_headers\n    self._validate_headers(headers_dict, custom_headers)\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_client.py\", line 385, in _validate_headers\n    raise TypeError(\nTypeError: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"\n"
+  },
+  {
+    "run_id": "c80a3b89",
+    "started_at": "2026-06-08T10:35:17.277034+00:00",
+    "finished_at": "2026-06-08T10:35:19.779996+00:00",
+    "status": "failed",
+    "current_stage": "stage1_research",
+    "topic": null,
+    "script_preview": null,
+    "pictory_draft_url": null,
+    "stage_timings": {},
+    "error": " \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\pipeline\\stage1_research\\claude_selector.py\", line 85, in _call\n    message = client.messages.create(\n              ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_utils\\_utils.py\", line 294, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\resources\\messages\\messages.py\", line 1008, in create\n    return self._post(\n           ^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 1374, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 1064, in request\n    request = self._build_request(options, retries_taken=retries_taken)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 522, in _build_request\n    headers = self._build_headers(options, retries_taken=retries_taken)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_base_client.py\", line 452, in _build_headers\n    self._validate_headers(headers_dict, custom_headers)\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\anthropic\\_client.py\", line 385, in _validate_headers\n    raise TypeError(\nTypeError: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"\n"
+  },
+  {
+    "run_id": "d0494b34",
+    "started_at": "2026-06-08T10:36:33.252771+00:00",
+    "finished_at": "2026-06-08T10:37:45.297217+00:00",
+    "status": "failed",
+    "current_stage": "stage2_voice",
+    "topic": "Digitale transformatie: Hoe kleine bedrijven hun 'oude systemen' vervangen",
+    "script_preview": "Stel jezelf deze vraag: hoeveel uren per week verspil je met verouderde systemen in je bedrijf? Je weet wel: uitspraken in Excel, handmatig koppelingen tussen tools, papieren processen. Elk klein uur ",
+    "pictory_draft_url": null,
+    "stage_timings": {
+      "stage1_research": 11.0
+    },
+    "error": "configs\\vits_config.py\", line 5, in <module>\n    from TTS.tts.models.vits import VitsArgs, VitsAudioConfig\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\TTS\\tts\\models\\vits.py\", line 22, in <module>\n    from TTS.tts.datasets.dataset import TTSDataset, _parse_sample\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\TTS\\tts\\datasets\\__init__.py\", line 10, in <module>\n    from TTS.tts.datasets.formatters import *\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\TTS\\tts\\datasets\\formatters.py\", line 8, in <module>\n    import pandas as pd\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\pandas\\__init__.py\", line 22, in <module>\n    from pandas.compat import is_numpy_dev as _is_numpy_dev  # pyright: ignore # noqa:F401\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\pandas\\compat\\__init__.py\", line 18, in <module>\n    from pandas.compat.numpy import (\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\pandas\\compat\\numpy\\__init__.py\", line 4, in <module>\n    from pandas.util.version import Version\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\pandas\\util\\__init__.py\", line 2, in <module>\n    from pandas.util._decorators import (  # noqa:F401\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\pandas\\util\\_decorators.py\", line 14, in <module>\n    from pandas._libs.properties import cache_readonly\n  File \"C:\\TeckFlow AI Solutions\\SocialMediaVideoCreation\\venv\\Lib\\site-packages\\pandas\\_libs\\__init__.py\", line 13, in <module>\n    from pandas._libs.interval import Interval\n  File \"pandas\\_libs\\interval.pyx\", line 1, in init pandas._libs.interval\nValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject\n"
+  },
+  {
+    "run_id": "9d040f1d",
+    "started_at": "2026-06-08T10:41:23.116111+00:00",
+    "finished_at": null,
+    "status": "running",
+    "current_stage": "stage2_voice",
+    "topic": "Digitale processen vervangen verouderde systemen",
+    "script_preview": "Je bedrijf loopt nog op verouderde systemen? Dan verlies je geld zonder het te beseffen. Veel KMO's werken nog met Excel, papier en handmatige processen die uren per week kosten. Maar wat als je die p",
+    "pictory_draft_url": null,
+    "stage_timings": {
+      "stage1_research": 11.3
+    },
+    "error": null
+  }
+]
