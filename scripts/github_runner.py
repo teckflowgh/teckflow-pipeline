@@ -184,15 +184,16 @@ def setup_pod(host, port):
     write_env_cmd = f"python3 -c \"open('/workspace/project/.env','w').write({repr(env_lines)})\""
     ssh_run(host, port, write_env_cmd, timeout=10)
 
-    # API starten
+    # API starten (nohup = keert direct terug, geen timeout nodig)
     print("  API starten...")
     ssh_run(host, port,
         "cd /workspace/project && "
-        "nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 &",
-        timeout=15)
+        "nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 & "
+        "disown && echo API_LAUNCHED",
+        timeout=30)
 
-    time.sleep(8)
-    ssh_run(host, port, "tail -10 /tmp/api.log 2>/dev/null", timeout=10)
+    time.sleep(15)
+    ssh_run(host, port, "tail -10 /tmp/api.log 2>/dev/null && echo LOG_OK", timeout=20)
     print("Setup klaar!")
 
 
