@@ -155,13 +155,13 @@ def setup_fresh_pod(host, port):
         "cd /workspace/project/dashboard && npm install --silent && npm run build 2>/dev/null || true",
         timeout=300)
 
-    # PM2 starten
+    # API starten via nohup (geen pm2 nodig)
     print("  API starten...")
     ssh_cmd(host, port,
+        "pkill -f uvicorn 2>/dev/null; sleep 2; "
         "cd /workspace/project && "
-        "pm2 delete all 2>/dev/null; "
-        "pm2 start 'uvicorn api.main:app --host 0.0.0.0 --port 8000' --name teckflow-api && "
-        "pm2 save",
+        "nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 & "
+        "echo API_STARTED",
         timeout=30)
 
     print("Setup klaar!")
@@ -173,7 +173,8 @@ def setup_existing_pod(host, port):
     ssh_cmd(host, port,
         f"cd /workspace/project && git pull origin main -q && "
         "pip install edge-tts -q && "
-        "pm2 restart teckflow-api",
+        "pkill -f uvicorn 2>/dev/null; sleep 2; "
+        "nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 &",
         timeout=60)
 
 
