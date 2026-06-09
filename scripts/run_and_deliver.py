@@ -135,7 +135,7 @@ def main():
             f"❌ TeckFlow pipeline gecrasht",
             f"De pipeline is gecrasht:\n\n{e}\n\n{traceback.format_exc()[:1000]}",
         )
-        terminate_self()
+        # NIET zelf termineren — autorun.sh uploadt eerst de log, dan pas terminate
         sys.exit(1)
 
     # Resultaat afleveren
@@ -173,9 +173,8 @@ Script-preview:
             f"De pipeline is mislukt:\n\n{err[:1000]}",
         )
 
-    # Altijd pod termineren
-    terminate_self()
-    print("Klaar.")
+    # NIET zelf termineren — autorun.sh doet dat ná het uploaden van de debug-log
+    print("Pipeline-stap klaar. Autorun handelt log + terminatie af.")
 
 
 if __name__ == "__main__":
