@@ -168,14 +168,22 @@ def setup_fresh_pod(host, port):
 
 
 def setup_existing_pod(host, port):
-    """Bestaande pod updaten: git pull + restart."""
+    """Bestaande pod updaten: git pull + pydantic fix + restart."""
     print("\n=== Bestaande pod updaten ===")
+    # Fix pydantic versie + edge-tts + git pull
     ssh_cmd(host, port,
-        f"cd /workspace/project && git pull origin main -q && "
-        "pip install edge-tts -q && "
-        "pkill -f uvicorn 2>/dev/null; sleep 2; "
-        "nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 &",
+        "pip install 'pydantic==2.8.0' 'pydantic-core==2.20.0' 'pydantic-settings==2.4.0' edge-tts -q",
         timeout=60)
+    ssh_cmd(host, port,
+        f"cd /workspace/project && git pull origin main -q 2>/dev/null || true",
+        timeout=30)
+    # Stop + start uvicorn
+    ssh_cmd(host, port,
+        "pkill -f uvicorn 2>/dev/null; sleep 3; "
+        "cd /workspace/project && "
+        "nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 & "
+        "sleep 5 && tail -5 /tmp/api.log",
+        timeout=30)
 
 
 def wait_for_api(timeout=180):
@@ -261,7 +269,11 @@ def main():
         else:
             setup_existing_pod(host, port)
 
-        api_url = wait_for_api(timeout=120)
+        # Check API log voor debuggen
+        time.sleep(10)
+        ssh_cmd(host, port, "tail -15 /tmp/api.log 2>/dev/null || echo 'Geen log'", timeout=15)
+
+        api_url = wait_for_api(timeout=180)
         run_id = run_pipeline(api_url)
         if not run_id:
             sys.exit(1)
