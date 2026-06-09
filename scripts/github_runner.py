@@ -84,10 +84,11 @@ def deploy_edge_tts(ssh_host, ssh_port):
 
     print(f"edge-tts deployen via SSH {ssh_host}:{ssh_port}...")
 
-    # Schrijf SSH key
+    # Schrijf SSH key (verwijder Windows CRLF line endings)
     key_file = tempfile.mktemp(suffix=".pem")
-    with open(key_file, "w") as f:
-        f.write(SSH_KEY)
+    clean_key = SSH_KEY.replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+    with open(key_file, "w", newline="\n") as f:
+        f.write(clean_key)
     os.chmod(key_file, 0o600)
 
     # Minimale synthesizer met edge-tts
