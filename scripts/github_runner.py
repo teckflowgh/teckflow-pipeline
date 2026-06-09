@@ -115,40 +115,50 @@ def main():
         print("FOUT: Pod kon niet aangemaakt worden.")
         sys.exit(1)
 
-    print("\nDe pod draait nu volledig autonoom:")
-    print("  1. Installeert dependencies")
-    print("  2. Haalt assets op")
-    print("  3. Draait pipeline (research → stem → avatar → montage)")
-    print("  4. Stuurt video per e-mail naar info@teckflow.be")
-    print("  5. Termineert zichzelf\n")
+    print("\nDe pod draait nu volledig autonoom (voortgang via ntfy):")
+    print("  ntfy-kanaal: https://ntfy.sh/teckflow-vid-7k3m9")
+    print("  (installeer de ntfy-app en abonneer op 'teckflow-vid-7k3m9' voor gsm-meldingen)\n")
 
-    # Wacht tot de pod zichzelf termineert (= klaar) of timeout (60 min)
-    print("Voortgang volgen (de pod e-mailt het eindresultaat)...")
+    # Luister naar ntfy beacons + volg pod-status
+    NTFY_JSON = "https://ntfy.sh/teckflow-vid-7k3m9/json?poll=1&since=" + str(int(time.time()))
+    seen = set()
     deadline = time.time() + 60 * 60
-    last_uptime = 0
     max_uptime = 0
-    # Geef de pod eerst 90s om echt op te starten voor we EXITED serieus nemen
-    time.sleep(90)
 
     while time.time() < deadline:
+        # Lees nieuwe ntfy berichten
+        try:
+            r = requests.get(NTFY_JSON.split("&since=")[0] + "&since=" + str(int(time.time()) - 3600), timeout=15)
+            for line in r.text.strip().split("\n"):
+                if not line.strip():
+                    continue
+                msg = json.loads(line)
+                if msg.get("event") == "message":
+                    mid = msg.get("id")
+                    text = msg.get("message", "")
+                    if mid and mid not in seen:
+                        seen.add(mid)
+                        print(f"  📡 {text}")
+                        # Eindsignalen
+                        if "VIDEO KLAAR" in text:
+                            print("\n🎉 SUCCES! De video is klaar.")
+                            terminate_pod(pod_id)
+                            sys.exit(0)
+                        if "Geen video" in text:
+                            print("\n❌ Pipeline gaf geen video — zie debug-log hierboven.")
+                            terminate_pod(pod_id)
+                            sys.exit(1)
+        except Exception:
+            pass
+
         status, uptime = pod_status(pod_id)
         max_uptime = max(max_uptime, uptime)
 
-        if status in ("TERMINATED", "EXITED"):
-            if max_uptime < 300:
-                # Te snel gestopt = waarschijnlijk crash bij opstarten
-                print(f"\n⚠️ Pod stopte na slechts {max_uptime}s — waarschijnlijk een opstartfout.")
-                print("Check je e-mail voor de debug-log (TeckFlow autorun log).")
-                sys.exit(1)
-            print(f"\n✅ Pod klaar en zelf afgesloten (draaide {max_uptime//60}m {max_uptime%60}s).")
-            print("Check je e-mail (info@teckflow.be) voor de video!")
+        if status in ("TERMINATED", "EXITED") and max_uptime > 60:
+            print(f"\nPod afgesloten (draaide {max_uptime//60}m). Check ntfy/debug-log hierboven.")
             sys.exit(0)
 
-        if uptime != last_uptime:
-            print(f"  Pod draait... {uptime//60}m {uptime%60}s (status: {status})")
-            last_uptime = uptime
-
-        time.sleep(30)
+        time.sleep(20)
 
     # Timeout: forceer terminatie
     print("\n⚠️ Timeout na 60 min — pod forceren te stoppen.")
