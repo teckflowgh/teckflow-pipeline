@@ -1,243 +1,196 @@
 """
-GitHub Actions runner script voor de TeckFlow dagelijkse video pipeline.
-Wordt aangeroepen door .github/workflows/daily_video.yml
+GitHub Actions runner - TeckFlow dagelijkse video pipeline.
+Strategie: pod start, haalt laatste code van GitHub via git pull,
+installeert ontbrekende packages, en draait de pipeline.
+Geen lokale SSH vanuit Windows nodig.
 """
 
-import os
-import sys
-import time
-import json
-import subprocess
-import tempfile
-
+import os, sys, time, json, subprocess, tempfile
 import requests
 
-API_KEY  = os.environ["RUNPOD_API_KEY"]
-POD_ID   = os.environ["RUNPOD_POD_ID"]
-MODE     = os.environ.get("VIDEO_MODE", "short")
-SSH_KEY  = os.environ.get("SSH_PRIVATE_KEY", "")
-GQL_URL  = f"https://api.runpod.io/graphql?api_key={API_KEY}"
+API_KEY = os.environ["RUNPOD_API_KEY"]
+POD_ID  = os.environ["RUNPOD_POD_ID"]
+MODE    = os.environ.get("VIDEO_MODE", "short")
+SSH_KEY = os.environ.get("SSH_PRIVATE_KEY", "")
+REPO    = os.environ.get("GITHUB_REPO", "https://github.com/teckflowgh/teckflow-pipeline.git")
+GQL     = f"https://api.runpod.io/graphql?api_key={API_KEY}"
 
-
-def gql(query):
-    r = requests.post(GQL_URL, json={"query": query}, timeout=30)
+def gql(q):
+    r = requests.post(GQL, json={"query": q}, timeout=30)
     r.raise_for_status()
     return r.json()
 
-
-def start_pod():
-    print("Pod starten...")
-    gql(f'mutation {{ podResume(input: {{podId: "{POD_ID}", gpuCount: 1}}) {{ id }} }}')
-    time.sleep(15)
-
-
 def stop_pod():
-    print("Pod stoppen...")
     try:
         gql(f'mutation {{ podStop(input: {{podId: "{POD_ID}"}}) {{ id }} }}')
         print("Pod gestopt.")
     except Exception as e:
-        print(f"Pod stoppen mislukt: {e}")
+        print(f"Stop mislukt: {e}")
 
+def start_pod():
+    print("Pod starten...")
+    gql(f'mutation {{ podResume(input: {{podId: "{POD_ID}", gpuCount: 1}}) {{ id }} }}')
+    time.sleep(20)
 
 def wait_for_pod(timeout=600):
-    print("Wachten tot pod klaar is (max 10 min)...")
-    start = time.time()
-    ssh_host = None
-    ssh_port = None
-    # RunPod proxy URL is altijd beschikbaar zodra pod RUNNING is
-    api_url = f"https://{POD_ID}-8000.proxy.runpod.net"
+    print("Wachten op pod (max 10 min)...")
+    deadline = time.time() + timeout
+    ssh_host = ssh_port = None
 
-    # Stap 1: Wacht tot pod RUNNING is en SSH poort beschikbaar
-    while time.time() - start < timeout:
+    while time.time() < deadline:
         try:
-            pod = gql(
-                f'{{ pod(input: {{podId: "{POD_ID}"}}) {{'
-                f'desiredStatus runtime {{ uptimeInSeconds ports {{ ip isIpPublic privatePort publicPort type }} }} }} }}'
-            )
-            data = pod["data"]["pod"]
-            status = data.get("desiredStatus", "")
-            runtime = data.get("runtime") or {}
-            uptime = runtime.get("uptimeInSeconds", 0)
+            r = gql(f'{{ pod(input: {{podId: "{POD_ID}"}}) {{ desiredStatus runtime {{ uptimeInSeconds ports {{ ip isIpPublic privatePort publicPort }} }} }} }}')
+            pod = r["data"]["pod"]
+            status = pod.get("desiredStatus", "")
+            runtime = pod.get("runtime") or {}
+            uptime = int(runtime.get("uptimeInSeconds") or 0)
             ports = runtime.get("ports", [])
 
             for p in ports:
                 if p.get("privatePort") == 22 and p.get("isIpPublic"):
-                    ssh_host = p.get("ip")
-                    ssh_port = p.get("publicPort")
+                    ssh_host = p["ip"]
+                    ssh_port = p["publicPort"]
 
-            print(f"Pod status: {status} | Uptime: {uptime}s | SSH: {ssh_host}:{ssh_port}")
+            print(f"Status: {status} | Uptime: {uptime}s | SSH: {ssh_host}:{ssh_port}")
 
-            # Pod is running en heeft al >30s uptime → services gestart
-            if status == "RUNNING" and uptime and int(uptime) > 60 and ssh_host:
-                # Geef PM2 extra tijd
-                print("Pod draait, wachten op API services...")
-                time.sleep(30)
-                # Test API
-                for attempt in range(10):
-                    try:
-                        r = requests.get(f"{api_url}/", timeout=15)
-                        if r.status_code == 200:
-                            print(f"API bereikbaar! ({api_url})")
-                            return api_url, ssh_host, ssh_port
-                    except Exception as e:
-                        print(f"API poging {attempt+1}/10: {e}")
-                    time.sleep(15)
-                # API niet bereikbaar maar SSH wel → ga toch door
-                if ssh_host:
-                    print("API proxy niet bereikbaar maar SSH wel — doorgaan via SSH.")
-                    return api_url, ssh_host, ssh_port
-
+            if status == "RUNNING" and uptime > 30 and ssh_host:
+                return ssh_host, int(ssh_port)
         except Exception as e:
-            print(f"Status check fout: {e}")
+            print(f"Poll fout: {e}")
+        time.sleep(15)
 
-        time.sleep(20)
+    return None, None
 
-    return None, None, None
-
-
-def deploy_edge_tts(ssh_host, ssh_port):
-    if not SSH_KEY or not ssh_host:
-        print("Geen SSH key — edge-tts fix overgeslagen.")
-        return False
-
-    print(f"edge-tts deployen via SSH {ssh_host}:{ssh_port}...")
-
-    # Schrijf SSH key (verwijder Windows CRLF line endings)
-    key_file = tempfile.mktemp(suffix=".pem")
-    clean_key = SSH_KEY.replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
-    with open(key_file, "w", newline="\n") as f:
-        f.write(clean_key)
-    os.chmod(key_file, 0o600)
-
-    # Minimale synthesizer met edge-tts
-    synth_code = (
-        "import asyncio\n"
-        "from pathlib import Path\n"
-        "import logging\n"
-        "logger = logging.getLogger(__name__)\n"
-        "async def _synth(text, out, lang):\n"
-        "    import edge_tts\n"
-        "    voices = {'nl': 'nl-NL-ColetteNeural', 'en': 'en-US-JennyNeural', 'fr': 'fr-FR-DeniseNeural'}\n"
-        "    voice = voices.get(lang, 'nl-NL-ColetteNeural')\n"
-        "    await edge_tts.Communicate(text, voice).save(str(out))\n"
-        "def synthesize_speech(script, reference_wav, output_path, language='nl', use_gpu=None):\n"
-        "    output_path = Path(output_path).resolve()\n"
-        "    output_path.parent.mkdir(parents=True, exist_ok=True)\n"
-        "    try:\n"
-        "        import edge_tts\n"
-        "    except ImportError:\n"
-        "        import subprocess\n"
-        "        subprocess.run(['pip', 'install', 'edge-tts', '-q'], check=True)\n"
-        "    asyncio.run(_synth(script, output_path, language))\n"
-        "    logger.info('Spraak: %s (%d KB)', output_path.name, output_path.stat().st_size // 1024)\n"
-        "    return output_path\n"
+def ssh_run(host, port, key_file, cmd, timeout=120):
+    """Voer een commando uit via SSH. Geeft True terug bij succes."""
+    result = subprocess.run(
+        ["ssh", "-i", key_file, "-o", "StrictHostKeyChecking=no",
+         "-o", f"ConnectTimeout=15", "-p", str(port), f"root@{host}", cmd],
+        capture_output=True, text=True, timeout=timeout
     )
+    print(f"SSH stdout: {result.stdout[-300:]}")
+    if result.returncode != 0:
+        print(f"SSH stderr: {result.stderr[-200:]}")
+    return result.returncode == 0
 
-    # Schrijf Python script dat de fix uitvoert
-    fix_script = (
-        "import subprocess, os\n"
-        "subprocess.run(['pip', 'install', 'edge-tts', '-q'])\n"
-        f"code = {repr(synth_code)}\n"
-        "with open('/workspace/project/pipeline/stage2_voice/xtts_synthesizer.py', 'w') as f:\n"
-        "    f.write(code)\n"
-        "subprocess.run(['pm2', 'restart', 'teckflow-api'])\n"
-        "print('FIX_DONE')\n"
+def setup_pod(host, port, key_file):
+    """Update de pod code via git pull en installeer ontbrekende packages."""
+    print(f"Pod setup via SSH {host}:{port}...")
+
+    # Stap 1: Git remote instellen en code updaten
+    git_cmd = (
+        f"cd /workspace/project && "
+        f"git remote set-url origin {REPO} 2>/dev/null || git remote add origin {REPO} && "
+        f"git fetch origin main -q && "
+        f"git checkout origin/main -- pipeline/stage2_voice/xtts_synthesizer.py && "
+        f"echo GIT_OK"
     )
+    if not ssh_run(host, port, key_file, git_cmd, timeout=60):
+        print("Git pull mislukt - probeer directe installatie...")
 
-    fix_file = tempfile.mktemp(suffix=".py")
-    with open(fix_file, "w") as f:
-        f.write(fix_script)
+    # Stap 2: edge-tts installeren (klein pakket, snel)
+    pip_cmd = "pip install edge-tts -q && echo PIP_OK"
+    ssh_run(host, port, key_file, pip_cmd, timeout=60)
 
-    # Kopieer fix script naar pod
-    scp_result = subprocess.run([
-        "scp", "-i", key_file, "-o", "StrictHostKeyChecking=no",
-        "-P", str(ssh_port), fix_file, f"root@{ssh_host}:/tmp/fix.py"
-    ], capture_output=True, text=True, timeout=30)
+    # Stap 3: API herstarten
+    pm2_cmd = "pm2 restart teckflow-api && sleep 5 && pm2 list"
+    ssh_run(host, port, key_file, pm2_cmd, timeout=30)
 
-    if scp_result.returncode == 0:
-        # Voer het uit
-        ssh_result = subprocess.run([
-            "ssh", "-i", key_file, "-o", "StrictHostKeyChecking=no",
-            "-p", str(ssh_port), f"root@{ssh_host}",
-            "python3 /tmp/fix.py"
-        ], capture_output=True, text=True, timeout=60)
-        print("SSH output:", ssh_result.stdout)
-        if ssh_result.returncode != 0:
-            print("SSH fout:", ssh_result.stderr[-200:])
-    else:
-        print("SCP fout:", scp_result.stderr)
+def wait_for_api(timeout=180):
+    """Wacht tot de FastAPI bereikbaar is via de proxy URL."""
+    api_url = f"https://{POD_ID}-8000.proxy.runpod.net"
+    print(f"Wachten op API: {api_url}")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            r = requests.get(f"{api_url}/", timeout=10)
+            if r.status_code == 200:
+                print("API bereikbaar!")
+                return api_url
+        except Exception:
+            pass
+        time.sleep(10)
+    print("API timeout — toch proberen...")
+    return api_url  # Probeer toch
 
-    os.unlink(key_file)
-    os.unlink(fix_file)
-    time.sleep(10)
-    return True
-
-
-def trigger_pipeline(api_url):
+def run_pipeline(api_url):
     print(f"Pipeline starten (modus: {MODE})...")
     r = requests.post(f"{api_url}/api/run", json={"mode": MODE}, timeout=30)
     run_id = r.json().get("run_id")
     print(f"Run ID: {run_id}")
     return run_id
 
-
-def wait_for_pipeline(api_url, timeout_min=45):
-    print("Wachten op pipeline resultaat...")
-    for _ in range(timeout_min * 2):
+def poll_pipeline(api_url, timeout_min=45):
+    print("Pipeline volgen...")
+    deadline = time.time() + timeout_min * 60
+    while time.time() < deadline:
         time.sleep(30)
         try:
-            status = requests.get(f"{api_url}/api/status", timeout=15).json()
-            s = status.get("status", "")
-            topic = status.get("topic", "")
-            stage = status.get("current_stage", "")
-            print(f"Stage: {stage} | Status: {s} | Topic: {topic[:50]}")
-
-            if s == "completed":
-                print("\nPipeline succesvol!")
-                print(json.dumps(status, indent=2, ensure_ascii=False))
+            s = requests.get(f"{api_url}/api/status", timeout=15).json()
+            status = s.get("status", "")
+            print(f"Stage: {s.get('current_stage')} | Status: {status} | Topic: {str(s.get('topic',''))[:50]}")
+            if status == "completed":
+                print(json.dumps(s, indent=2, ensure_ascii=False))
                 return True
-            elif s == "failed":
-                print("\nPipeline mislukt!")
-                print(status.get("error", "")[:500])
+            if status == "failed":
+                print("MISLUKT:", s.get("error","")[:300])
                 return False
         except Exception as e:
-            print(f"Status check fout: {e}")
-
-    print("Timeout!")
+            print(f"Poll fout: {e}")
+    print("Timeout")
     return False
-
 
 def main():
     print("=" * 50)
     print("TeckFlow dagelijkse video pipeline")
     print("=" * 50)
 
+    key_file = None
     success = False
-    try:
-        start_pod()
-        api_url, ssh_host, ssh_port = wait_for_pod(timeout=300)
 
-        if not api_url:
-            print("FOUT: Pod niet bereikbaar.")
+    try:
+        # SSH key aanmaken
+        if SSH_KEY:
+            key_file = tempfile.mktemp(suffix=".pem")
+            clean = SSH_KEY.replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+            with open(key_file, "w", newline="\n") as f:
+                f.write(clean)
+            os.chmod(key_file, 0o600)
+
+        # Pod starten
+        start_pod()
+
+        # Wachten op SSH
+        host, port = wait_for_pod(timeout=600)
+        if not host:
+            print("FOUT: Pod niet bereikbaar via SSH.")
             sys.exit(1)
 
-        # Fix edge-tts
-        deploy_edge_tts(ssh_host, ssh_port)
-        time.sleep(15)
+        print(f"SSH bereikbaar: {host}:{port}")
 
-        # Pipeline uitvoeren
-        run_id = trigger_pipeline(api_url)
+        # Pod setup (git pull + edge-tts + PM2 restart)
+        if key_file:
+            setup_pod(host, port, key_file)
+        else:
+            print("Geen SSH key — setup overgeslagen.")
+
+        # Wachten op API
+        api_url = wait_for_api(timeout=120)
+
+        # Pipeline triggeren
+        run_id = run_pipeline(api_url)
         if not run_id:
             sys.exit(1)
 
-        success = wait_for_pipeline(api_url)
+        # Wachten op resultaat
+        success = poll_pipeline(api_url, timeout_min=45)
 
     finally:
+        if key_file and os.path.exists(key_file):
+            os.unlink(key_file)
         stop_pod()
 
     sys.exit(0 if success else 1)
-
 
 if __name__ == "__main__":
     main()
