@@ -40,38 +40,57 @@ def stop_pod():
         print(f"Pod stoppen mislukt: {e}")
 
 
-def wait_for_pod(timeout=300):
-    print("Wachten tot pod klaar is...")
+def wait_for_pod(timeout=600):
+    print("Wachten tot pod klaar is (max 10 min)...")
     start = time.time()
-    api_url = None
     ssh_host = None
     ssh_port = None
+    # RunPod proxy URL is altijd beschikbaar zodra pod RUNNING is
+    api_url = f"https://{POD_ID}-8000.proxy.runpod.net"
 
+    # Stap 1: Wacht tot pod RUNNING is en SSH poort beschikbaar
     while time.time() - start < timeout:
-        pod = gql(
-            f'{{ pod(input: {{podId: "{POD_ID}"}}) {{'
-            f'desiredStatus runtime {{ ports {{ ip isIpPublic privatePort publicPort type }} }} }} }}'
-        )
-        runtime = pod["data"]["pod"].get("runtime") or {}
-        ports = runtime.get("ports", [])
+        try:
+            pod = gql(
+                f'{{ pod(input: {{podId: "{POD_ID}"}}) {{'
+                f'desiredStatus runtime {{ uptimeInSeconds ports {{ ip isIpPublic privatePort publicPort type }} }} }} }}'
+            )
+            data = pod["data"]["pod"]
+            status = data.get("desiredStatus", "")
+            runtime = data.get("runtime") or {}
+            uptime = runtime.get("uptimeInSeconds", 0)
+            ports = runtime.get("ports", [])
 
-        for p in ports:
-            if p.get("privatePort") == 8000 and p.get("publicPort"):
-                api_url = f"https://{POD_ID}-8000.proxy.runpod.net"
-            if p.get("privatePort") == 22 and p.get("isIpPublic"):
-                ssh_host = p.get("ip")
-                ssh_port = p.get("publicPort")
+            for p in ports:
+                if p.get("privatePort") == 22 and p.get("isIpPublic"):
+                    ssh_host = p.get("ip")
+                    ssh_port = p.get("publicPort")
 
-        if api_url:
-            try:
-                r = requests.get(f"{api_url}/", timeout=10)
-                if r.status_code == 200:
-                    print(f"Pod klaar! API: {api_url}")
+            print(f"Pod status: {status} | Uptime: {uptime}s | SSH: {ssh_host}:{ssh_port}")
+
+            # Pod is running en heeft al >30s uptime → services gestart
+            if status == "RUNNING" and uptime and int(uptime) > 60 and ssh_host:
+                # Geef PM2 extra tijd
+                print("Pod draait, wachten op API services...")
+                time.sleep(30)
+                # Test API
+                for attempt in range(10):
+                    try:
+                        r = requests.get(f"{api_url}/", timeout=15)
+                        if r.status_code == 200:
+                            print(f"API bereikbaar! ({api_url})")
+                            return api_url, ssh_host, ssh_port
+                    except Exception as e:
+                        print(f"API poging {attempt+1}/10: {e}")
+                    time.sleep(15)
+                # API niet bereikbaar maar SSH wel → ga toch door
+                if ssh_host:
+                    print("API proxy niet bereikbaar maar SSH wel — doorgaan via SSH.")
                     return api_url, ssh_host, ssh_port
-            except Exception:
-                pass
 
-        print("Nog wachten...")
+        except Exception as e:
+            print(f"Status check fout: {e}")
+
         time.sleep(20)
 
     return None, None, None
