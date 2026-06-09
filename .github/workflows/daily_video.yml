@@ -2,13 +2,13 @@ name: Dagelijkse TeckFlow Video Pipeline
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *'   # 02:00 Brussel (zomer)
   workflow_dispatch:
 
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 75
 
     steps:
       - name: Checkout code
@@ -22,15 +22,15 @@ jobs:
       - name: Dependencies installeren
         run: pip install requests
 
-      - name: Pipeline starten op RunPod
+      - name: Pod aanmaken en pipeline autonoom draaien
         env:
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-          RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           VIDEO_MODE: ${{ vars.VIDEO_MODE || 'short' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           VIDIQ_EMAIL: ${{ secrets.VIDIQ_EMAIL }}
           VIDIQ_PASSWORD: ${{ secrets.VIDIQ_PASSWORD }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: python scripts/github_runner.py
