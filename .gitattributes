@@ -1,0 +1,6 @@
+# Forceer LF (Unix) regeleindes voor shell scripts en Python
+# zodat ze correct draaien op Linux pods
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

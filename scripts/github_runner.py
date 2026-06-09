@@ -126,18 +126,26 @@ def main():
     print("Voortgang volgen (de pod e-mailt het eindresultaat)...")
     deadline = time.time() + 60 * 60
     last_uptime = 0
+    max_uptime = 0
+    # Geef de pod eerst 90s om echt op te starten voor we EXITED serieus nemen
+    time.sleep(90)
 
     while time.time() < deadline:
         status, uptime = pod_status(pod_id)
+        max_uptime = max(max_uptime, uptime)
 
         if status in ("TERMINATED", "EXITED"):
-            print(f"\n✅ Pod is klaar en heeft zichzelf afgesloten (na {uptime}s).")
+            if max_uptime < 300:
+                # Te snel gestopt = waarschijnlijk crash bij opstarten
+                print(f"\n⚠️ Pod stopte na slechts {max_uptime}s — waarschijnlijk een opstartfout.")
+                print("Check je e-mail voor de debug-log (TeckFlow autorun log).")
+                sys.exit(1)
+            print(f"\n✅ Pod klaar en zelf afgesloten (draaide {max_uptime//60}m {max_uptime%60}s).")
             print("Check je e-mail (info@teckflow.be) voor de video!")
             sys.exit(0)
 
         if uptime != last_uptime:
-            mins = uptime // 60
-            print(f"  Pod draait... {mins}m {uptime % 60}s (status: {status})")
+            print(f"  Pod draait... {uptime//60}m {uptime%60}s (status: {status})")
             last_uptime = uptime
 
         time.sleep(30)

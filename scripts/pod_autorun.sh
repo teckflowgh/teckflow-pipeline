@@ -83,3 +83,32 @@ echo ">>> Pipeline draaien..."
 python scripts/run_and_deliver.py
 
 echo "=== Autorun klaar: $(date) ==="
+
+# 8. Log uploaden naar catbox (voor debuggen, ook bij falen)
+echo ">>> Log uploaden voor debug..."
+LOG_URL=$(curl -s -F "reqtype=fileupload" -F "fileToUpload=@/workspace/autorun.log" https://catbox.moe/user/api.php 2>/dev/null)
+echo "DEBUG LOG: $LOG_URL"
+# Stuur log-link per e-mail (eenvoudige fallback als run_and_deliver faalde)
+python3 -c "
+import smtplib, os
+from email.mime.text import MIMEText
+try:
+    msg = MIMEText('Autorun log: $LOG_URL')
+    msg['Subject'] = 'TeckFlow autorun log'
+    msg['From'] = os.environ.get('SMTP_USER','')
+    msg['To'] = 'info@teckflow.be'
+    s = smtplib.SMTP('smtp.office365.com', 587)
+    s.starttls()
+    s.login(os.environ.get('SMTP_USER',''), os.environ.get('SMTP_PASSWORD',''))
+    s.send_message(msg)
+    s.quit()
+except Exception as e:
+    print('Log mail mislukt:', e)
+" 2>/dev/null || true
+
+# 9. Zekerheidshalve zelf termineren (mocht run_and_deliver dat niet gedaan hebben)
+if [ -n "$RUNPOD_API_KEY" ] && [ -n "$RUNPOD_POD_ID" ]; then
+  curl -s "https://api.runpod.io/graphql?api_key=$RUNPOD_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "{\"query\":\"mutation { podTerminate(input: {podId: \\\"$RUNPOD_POD_ID\\\"}) }\"}" >/dev/null 2>&1
+fi
