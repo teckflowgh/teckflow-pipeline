@@ -102,13 +102,18 @@ def wait_for_pod(timeout=600):
 
 
 def ssh_run(host, port, cmd, timeout=120):
-    """SSH commando uitvoeren."""
+    """SSH commando uitvoeren met keepalive tegen broken pipe."""
     args = ["ssh", "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=15", "-o", "BatchMode=yes"]
+            "-o", "ConnectTimeout=15", "-o", "BatchMode=yes",
+            "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=10"]
     if KEY_FILE:
         args += ["-i", KEY_FILE]
     args += ["-p", str(port), f"root@{host}", cmd]
-    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        print(f"  ⏱ Commando timeout na {timeout}s (gaat door op achtergrond)")
+        return False, ""
     if result.stdout.strip():
         print(f"  → {result.stdout.strip()[-400:]}")
     if result.returncode != 0 and result.stderr.strip():
@@ -129,72 +134,87 @@ def wait_for_ssh(host, port, attempts=25):
 
 
 def setup_pod(host, port):
-    """Volledige pod setup."""
-    print("\n=== Pod setup ===")
+    """
+    Volledige pod setup via één achtergrond-script.
+    Voorkomt 'broken pipe' door SSH niet minutenlang open te houden:
+    we schrijven één setup.sh, draaien die met nohup, en pollen de marker.
+    """
+    print("\n=== Pod setup (achtergrond-script) ===")
 
-    steps = [
-        ("Systeem packages",
-         "apt-get update -qq && apt-get install -y -qq ffmpeg git curl wget 2>/dev/null",
-         120),
-        ("PyTorch CUDA",
-         "pip install torch==2.4.1 torchaudio==2.4.1 "
-         "--index-url https://download.pytorch.org/whl/cu124 -q 2>/dev/null",
-         300),
-        ("Python packages",
-         "pip install fastapi==0.115.0 uvicorn 'pydantic==2.8.0' 'pydantic-settings==2.4.0' "
-         "'pydantic-core==2.20.0' python-dotenv apscheduler requests httpx anthropic "
-         "google-api-python-client aiofiles python-multipart rich gdown 'numpy==1.26.4' "
-         "scipy openai-whisper pydub edge-tts 2>/dev/null -q",
-         300),
-        ("Project klonen",
-         f"git clone {REPO} /workspace/project -q 2>/dev/null",
-         60),
-        ("AI modellen",
-         "git clone -q https://github.com/OpenTalker/SadTalker /workspace/project/third_party/SadTalker 2>/dev/null; "
-         "mkdir -p /workspace/project/third_party/SadTalker/checkpoints && "
-         "wget -q https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2-rc/SadTalker_V0.0.2_256.safetensors "
-         "-O /workspace/project/third_party/SadTalker/checkpoints/SadTalker_V0.0.2_256.safetensors",
-         180),
-    ]
-
-    for name, cmd, timeout in steps:
-        print(f"  {name}...")
-        ssh_run(host, port, cmd, timeout=timeout)
-
-    # Mappen aanmaken
-    ssh_run(host, port,
-        "mkdir -p /workspace/project/assets /workspace/project/output "
-        "/workspace/project/logs /workspace/project/data",
-        timeout=10)
-
-    # .env aanmaken
-    env_lines = "\n".join([
+    # .env inhoud
+    env_lines = "\\n".join([
         f"ANTHROPIC_API_KEY={os.environ.get('ANTHROPIC_API_KEY', '')}",
         f"YOUTUBE_API_KEY={os.environ.get('YOUTUBE_API_KEY', '')}",
         "YOUTUBE_CATEGORY_ID=28",
         f"PEXELS_API_KEY={os.environ.get('PEXELS_API_KEY', '')}",
         f"VIDIQ_EMAIL={os.environ.get('VIDIQ_EMAIL', '')}",
         f"VIDIQ_PASSWORD={os.environ.get('VIDIQ_PASSWORD', '')}",
+        "YOUTUBE_CATEGORY_ID=28",
         "SCHEDULE_TIME=02:00", "TIMEZONE=Europe/Brussels",
         "TOPIC_SOURCE=vidiq", "SCRIPT_LANGUAGE=nl", "USE_GPU=true",
         "API_HOST=0.0.0.0", "API_PORT=8000",
     ])
 
-    # Schrijf .env via Python op de pod (vermijdt quoting problemen)
-    write_env_cmd = f"python3 -c \"open('/workspace/project/.env','w').write({repr(env_lines)})\""
-    ssh_run(host, port, write_env_cmd, timeout=10)
+    # Het volledige setup-script dat OP de pod draait
+    setup_script = f"""#!/bin/bash
+set -e
+echo "START" > /tmp/setup_status
+export DEBIAN_FRONTEND=noninteractive
 
-    # API starten (nohup = keert direct terug, geen timeout nodig)
-    print("  API starten...")
+apt-get update -qq && apt-get install -y -qq ffmpeg git curl wget 2>/dev/null
+echo "PACKAGES_OK" > /tmp/setup_status
+
+pip install torch==2.4.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124 -q 2>/dev/null
+echo "TORCH_OK" > /tmp/setup_status
+
+pip install fastapi==0.115.0 uvicorn 'pydantic==2.8.0' 'pydantic-settings==2.4.0' 'pydantic-core==2.20.0' python-dotenv apscheduler requests httpx anthropic google-api-python-client aiofiles python-multipart rich gdown 'numpy==1.26.4' scipy openai-whisper pydub edge-tts -q 2>/dev/null
+echo "PIP_OK" > /tmp/setup_status
+
+git clone {REPO} /workspace/project -q 2>/dev/null || (cd /workspace/project && git pull -q)
+mkdir -p /workspace/project/assets /workspace/project/output /workspace/project/logs /workspace/project/data /workspace/project/third_party
+echo "CLONE_OK" > /tmp/setup_status
+
+# SadTalker (optioneel, mag falen)
+git clone -q https://github.com/OpenTalker/SadTalker /workspace/project/third_party/SadTalker 2>/dev/null || true
+mkdir -p /workspace/project/third_party/SadTalker/checkpoints
+wget -q --tries=2 --timeout=120 https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2-rc/SadTalker_V0.0.2_256.safetensors -O /workspace/project/third_party/SadTalker/checkpoints/SadTalker_V0.0.2_256.safetensors 2>/dev/null || true
+echo "MODELS_OK" > /tmp/setup_status
+
+# .env schrijven
+printf '{env_lines}\\n' > /workspace/project/.env
+
+# API starten
+cd /workspace/project
+nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 &
+sleep 8
+echo "DONE" > /tmp/setup_status
+"""
+
+    # Schrijf het script naar de pod via base64 (geen quoting problemen)
+    import base64
+    b64 = base64.b64encode(setup_script.encode()).decode()
+    print("  Setup-script uploaden...")
     ssh_run(host, port,
-        "cd /workspace/project && "
-        "nohup uvicorn api.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 & "
-        "disown && echo API_LAUNCHED",
+        f"echo '{b64}' | base64 -d > /tmp/setup.sh && chmod +x /tmp/setup.sh && "
+        f"nohup bash /tmp/setup.sh > /tmp/setup.log 2>&1 & disown && echo SCRIPT_STARTED",
         timeout=30)
 
-    time.sleep(15)
-    ssh_run(host, port, "tail -10 /tmp/api.log 2>/dev/null && echo LOG_OK", timeout=20)
-    print("Setup klaar!")
+    # Poll de setup_status marker (max 20 min)
+    print("  Setup draait op achtergrond, voortgang volgen...")
+    last_status = ""
+    for i in range(80):  # 80 × 15s = 20 min
+        time.sleep(15)
+        ok, out = ssh_run(host, port, "cat /tmp/setup_status 2>/dev/null", timeout=20)
+        status = out.strip()
+        if status and status != last_status:
+            print(f"  📍 {status}")
+            last_status = status
+        if status == "DONE":
+            print("✅ Setup klaar!")
+            ssh_run(host, port, "tail -8 /tmp/api.log 2>/dev/null", timeout=15)
+            return True
+    print("⚠️ Setup timeout, toch verder proberen...")
+    return False
 
 
 def wait_for_api(pod_id, timeout=180):
