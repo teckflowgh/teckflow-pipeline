@@ -12,8 +12,15 @@ cd /opt/MuseTalk
 rm -rf models
 ln -sfn /workspace/repos/MuseTalk/models models
 
-# Inputs
-wget -q --timeout=120 https://files.catbox.moe/cjg64m.mp4 -O /workspace/reference_clip.mp4 2>>"$LOG"
+# Stabiele 720p clip ophalen (met retry + verificatie)
+for i in 1 2 3; do
+  curl -sL --max-time 120 https://files.catbox.moe/37d5qm.mp4 -o /workspace/reference_clip_720.mp4
+  SZ=$(stat -c%s /workspace/reference_clip_720.mp4 2>/dev/null || echo 0)
+  [ "$SZ" -gt 100000 ] && break
+  sleep 5
+done
+beacon "MTTEST clip720 grootte: $(du -sh /workspace/reference_clip_720.mp4 2>/dev/null|cut -f1) | RAM: $(free -h | awk '/Mem:/{print $2}')"
+
 if [ ! -f /workspace/test_stem.wav ]; then
   source /opt/venv_tts/bin/activate
   export TTS_HOME=/workspace/tts_data COQUI_TOS_AGREED=1
@@ -24,10 +31,6 @@ t.tts_to_file(text='Automatisatie bespaart jouw KMO elke week kostbare uren. Ont
 " >>"$LOG" 2>&1
   deactivate
 fi
-# Clip downscalen naar 720p + inkorten (lost OOM op tijdens 'padding to original size')
-ffmpeg -y -i /workspace/reference_clip.mp4 -t 6 -vf "scale=-2:720" -c:v libx264 -an /workspace/reference_clip_720.mp4 >>"$LOG" 2>&1
-beacon "MTTEST clip 720p: $(du -sh /workspace/reference_clip_720.mp4 2>/dev/null|cut -f1) | RAM: $(free -h | awk '/Mem:/{print $2\" totaal, \"$7\" vrij\"}')"
-
 mkdir -p configs/inference
 cat > configs/inference/teckflow.yaml << 'YAML'
 task_0:
