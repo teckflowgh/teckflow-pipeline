@@ -72,13 +72,23 @@ def send_email(subject: str, body: str, attachment: Path | None = None):
         print(f"E-mail mislukt: {e}")
 
 
-def upload_to_transfer(video: Path) -> str | None:
-    """Upload video naar gratis bestandsdienst, geeft download-URL terug."""
-    if not video.exists():
-        return None
+def _ntfy(msg: str):
+    """Publiceer bericht naar ntfy-kanaal."""
     try:
         import requests
-        # catbox.moe — gratis, betrouwbaar, geen account nodig
+        requests.post("https://ntfy.sh/teckflow-vid-7k3m9", data=msg.encode("utf-8"), timeout=15)
+    except Exception:
+        pass
+
+
+def upload_to_transfer(video: Path) -> str | None:
+    """Upload video naar gratis bestandsdienst (meerdere fallbacks)."""
+    if not video.exists():
+        return None
+    import requests
+
+    # 1. catbox.moe via requests
+    try:
         with video.open("rb") as f:
             resp = requests.post(
                 "https://catbox.moe/user/api.php",
@@ -88,8 +98,31 @@ def upload_to_transfer(video: Path) -> str | None:
             )
         if resp.status_code == 200 and resp.text.startswith("http"):
             return resp.text.strip()
+        print(f"catbox respons: {resp.text[:100]}")
     except Exception as e:
-        print(f"Upload mislukt: {e}")
+        print(f"catbox mislukt: {e}")
+
+    # 2. tmpfiles.org fallback
+    try:
+        with video.open("rb") as f:
+            resp = requests.post("https://tmpfiles.org/api/v1/upload",
+                                 files={"file": (video.name, f)}, timeout=300)
+        if resp.status_code == 200:
+            url = resp.json().get("data", {}).get("url", "")
+            if url:
+                return url.replace("tmpfiles.org/", "tmpfiles.org/dl/")
+    except Exception as e:
+        print(f"tmpfiles mislukt: {e}")
+
+    # 3. 0x0.st fallback
+    try:
+        with video.open("rb") as f:
+            resp = requests.post("https://0x0.st", files={"file": (video.name, f)}, timeout=300)
+        if resp.status_code == 200 and resp.text.startswith("http"):
+            return resp.text.strip()
+    except Exception as e:
+        print(f"0x0 mislukt: {e}")
+
     return None
 
 
@@ -139,12 +172,21 @@ def main():
         sys.exit(1)
 
     # Resultaat afleveren
-    if result and result.get("status") == "completed":
+    if result and result.get("status") == "completed" and FINAL_VIDEO.exists():
         topic = result.get("topic", "")
         script_preview = result.get("script_preview", "")
 
-        # Probeer eerst upload-link (voor grote video's), anders bijlage
-        video_url = upload_to_transfer(FINAL_VIDEO) if FINAL_VIDEO.exists() else None
+        size_mb = FINAL_VIDEO.stat().st_size / (1024 * 1024)
+        print(f"Video gevonden: {FINAL_VIDEO} ({size_mb:.1f} MB)")
+        _ntfy(f"📤 Video uploaden ({size_mb:.0f} MB)...")
+
+        # Upload via Python (betrouwbaar, meerdere fallbacks)
+        video_url = upload_to_transfer(FINAL_VIDEO)
+        if video_url:
+            _ntfy(f"✅ VIDEO KLAAR! Onderwerp: {topic[:40]} | Download: {video_url}")
+            print(f"VIDEO URL: {video_url}")
+        else:
+            _ntfy("⚠️ Video gemaakt maar upload mislukt op alle diensten.")
 
         body = f"""De dagelijkse TeckFlow-video is klaar! 🎬
 

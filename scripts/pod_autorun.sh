@@ -92,20 +92,15 @@ python scripts/run_and_deliver.py
 beacon "🎬 Pipeline-stap afgerond"
 
 echo "=== Autorun klaar: $(date) ==="
+# (video-upload + 'VIDEO KLAAR' beacon gebeurt in run_and_deliver.py via Python)
 
-# 8. Log + video uploaden naar catbox (altijd, ook bij falen)
-echo ">>> Log uploaden..."
-LOG_URL=$(curl -s -F "reqtype=fileupload" -F "fileToUpload=@/workspace/autorun.log" https://catbox.moe/user/api.php 2>/dev/null)
-beacon "📋 Debug-log: $LOG_URL"
-
-if [ -f /workspace/project/output/final_video.mp4 ]; then
-  VID_URL=$(curl -s -F "reqtype=fileupload" -F "fileToUpload=@/workspace/project/output/final_video.mp4" https://catbox.moe/user/api.php 2>/dev/null)
-  beacon "✅ VIDEO KLAAR! Download: $VID_URL"
-else
-  beacon "⚠️ Geen video gegenereerd — check debug-log hierboven"
+# Veiligheidsnet: als er geen video is, meld dat met debug-log
+if [ ! -f /workspace/project/output/final_video.mp4 ]; then
+  LOG_URL=$(curl -s -F "reqtype=fileupload" -F "fileToUpload=@/workspace/autorun.log" https://tmpfiles.org/api/v1/upload 2>/dev/null)
+  beacon "⚠️ Geen video — debug-log: $LOG_URL"
 fi
 
-# 9. Pod termineren (ná uploads)
+# Pod termineren
 beacon "💤 Pod sluit zichzelf af."
 if [ -n "$RUNPOD_API_KEY" ] && [ -n "$RUNPOD_POD_ID" ]; then
   curl -s "https://api.runpod.io/graphql?api_key=$RUNPOD_API_KEY" \
