@@ -37,8 +37,12 @@ RUN python3 -m venv /opt/venv_tts && \
     /opt/venv_tts/bin/pip install --no-cache-dir \
       "TTS==0.22.0" "transformers==4.40.2"
 
-# --- Verificatie tijdens build: imports moeten slagen ---
-RUN python -c "import mmcv, mmpose, mmdet, diffusers; print('MuseTalk-omgeving OK:', mmcv.__version__)"
+# --- numpy ABI-fix: pin numpy 1.26 en hercompileer xtcocotools ertegen ---
+RUN pip install --no-cache-dir "numpy==1.26.4" && \
+    pip install --no-cache-dir --force-reinstall --no-binary xtcocotools xtcocotools
+
+# --- Verificatie tijdens build: imports + xtcocotools C-extensie + pose-inference ---
+RUN python -c "import numpy; print('numpy', numpy.__version__); import mmcv, mmpose, mmdet, diffusers; import xtcocotools._mask; from mmpose.apis import init_model; print('MuseTalk-omgeving OK:', mmcv.__version__)"
 RUN /opt/venv_tts/bin/python -c "from TTS.api import TTS; print('XTTS-omgeving OK')"
 
 WORKDIR /workspace
