@@ -24,12 +24,14 @@ t.tts_to_file(text='Automatisatie bespaart jouw KMO elke week kostbare uren. Ont
 " >>"$LOG" 2>&1
   deactivate
 fi
-beacon "MTTEST inputs: clip=$(du -sh /workspace/reference_clip.mp4 2>/dev/null|cut -f1) stem=$(du -sh /workspace/test_stem.wav 2>/dev/null|cut -f1)"
+# Clip downscalen naar 720p + inkorten (lost OOM op tijdens 'padding to original size')
+ffmpeg -y -i /workspace/reference_clip.mp4 -t 6 -vf "scale=-2:720" -c:v libx264 -an /workspace/reference_clip_720.mp4 >>"$LOG" 2>&1
+beacon "MTTEST clip 720p: $(du -sh /workspace/reference_clip_720.mp4 2>/dev/null|cut -f1) | RAM: $(free -h | awk '/Mem:/{print $2\" totaal, \"$7\" vrij\"}')"
 
 mkdir -p configs/inference
 cat > configs/inference/teckflow.yaml << 'YAML'
 task_0:
-  video_path: "/workspace/reference_clip.mp4"
+  video_path: "/workspace/reference_clip_720.mp4"
   audio_path: "/workspace/test_stem.wav"
 YAML
 
