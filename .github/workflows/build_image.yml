@@ -1,0 +1,38 @@
+name: Build TeckFlow Pipeline Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Schijf vrijmaken (verwijder ongebruikte toolchains)
+        run: |
+          echo "Vrije ruimte voor cleanup:"; df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af || true
+          echo "Vrije ruimte na cleanup:"; df -h /
+
+      - name: Login bij GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build en push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.pipeline
+          push: true
+          tags: ghcr.io/teckflowgh/teckflow-pipeline:latest
+          provenance: false

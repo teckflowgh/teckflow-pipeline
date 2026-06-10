@@ -1,0 +1,45 @@
+# ============================================================
+# TeckFlow Video Pipeline — werkende omgeving (MuseTalk + XTTS)
+# Lost dependency hell op via bewezen versie-combinatie (camenduru-recept).
+# Modellen staan op het RunPod network volume; dit image bevat enkel de omgeving.
+# ============================================================
+FROM runpod/pytorch:2.2.1-py3.10-cuda12.1.1-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# --- Systeem packages ---
+RUN apt-get update -y && apt-get install -y \
+    aria2 git git-lfs unzip ffmpeg espeak-ng wget curl build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- MuseTalk omgeving (basis python 3.10, bewezen versies) ---
+RUN pip install --no-cache-dir \
+    opencv-python imageio imageio-ffmpeg ffmpeg-python av runpod \
+    transformers==4.39.2 diffusers==0.27.2 accelerate==0.28.0 omegaconf \
+    mmpose mmdet moviepy soundfile \
+    https://github.com/camenduru/wheels/releases/download/tost/mmcv-2.1.0-cp310-cp310-linux_x86_64.whl \
+    munch pydub phonemizer einops einops-exts nltk librosa \
+    huggingface_hub
+
+# --- MuseTalk code (modellen komen van het volume) ---
+RUN GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/TMElyralab/MuseTalk /opt/MuseTalk
+
+# --- Pipeline-tools in basis-omgeving ---
+RUN pip install --no-cache-dir \
+    anthropic google-api-python-client requests httpx \
+    edge-tts openai-whisper python-dotenv rich gdown
+
+# --- XTTS in GEÏSOLEERDE venv (eigen transformers, geen conflict) ---
+RUN python3 -m venv /opt/venv_tts && \
+    /opt/venv_tts/bin/pip install --no-cache-dir \
+      torch==2.2.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu121 && \
+    /opt/venv_tts/bin/pip install --no-cache-dir \
+      "TTS==0.22.0" "transformers==4.40.2"
+
+# --- Verificatie tijdens build: imports moeten slagen ---
+RUN python -c "import mmcv, mmpose, mmdet, diffusers; print('MuseTalk-omgeving OK:', mmcv.__version__)"
+RUN /opt/venv_tts/bin/python -c "from TTS.api import TTS; print('XTTS-omgeving OK')"
+
+WORKDIR /workspace
+CMD ["/bin/bash"]
