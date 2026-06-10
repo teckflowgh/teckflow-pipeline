@@ -13,11 +13,11 @@ rm -rf models; ln -sfn /workspace/repos/MuseTalk/models models
 # Clip van GitHub raw (rotsvast)
 RAW="https://raw.githubusercontent.com/teckflowgh/teckflow-pipeline/main/assets/refclip720.mp4"
 for i in 1 2 3; do
-  curl -sL --max-time 60 "$RAW" -o /workspace/refclip720.mp4
-  SZ=$(stat -c%s /workspace/refclip720.mp4 2>/dev/null || echo 0)
+  curl -sL --max-time 60 "$RAW" -o /tmp/refclip720.mp4
+  SZ=$(stat -c%s /tmp/refclip720.mp4 2>/dev/null || echo 0)
   [ "$SZ" -gt 100000 ] && break; sleep 3
 done
-beacon "MTTEST clip: $(du -h /workspace/refclip720.mp4 2>/dev/null|cut -f1)"
+beacon "MTTEST clip: $(du -h /tmp/refclip720.mp4 2>/dev/null|cut -f1)"
 
 # Stem genereren in-pod
 source /opt/venv_tts/bin/activate
@@ -34,7 +34,7 @@ beacon "MTTEST stem: $(du -h /tmp/stem.wav 2>/dev/null|cut -f1)"
 mkdir -p configs/inference
 cat > configs/inference/teckflow.yaml << 'YAML'
 task_0:
-  video_path: "/workspace/refclip720.mp4"
+  video_path: "/tmp/refclip720.mp4"
   audio_path: "/tmp/stem.wav"
 YAML
 
