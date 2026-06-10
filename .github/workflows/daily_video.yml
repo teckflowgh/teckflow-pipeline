@@ -1,8 +1,9 @@
 name: Dagelijkse TeckFlow Video Pipeline
 
 on:
-  schedule:
-    - cron: '0 0 * * *'   # 02:00 Brussel (zomer)
+  # Nachtelijke cron UITGESCHAKELD op verzoek — enkel handmatig starten
+  # schedule:
+  #   - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
