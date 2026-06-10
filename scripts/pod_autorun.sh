@@ -41,21 +41,17 @@ echo ">>> Audio/video packages..."
 pip install --no-input edge-tts pydub pexels-api 'pydantic==2.8.0' -q 2>&1 | tail -2
 beacon "🔊 Audio packages klaar"
 
-# Whisper (ondertitels) optioneel — faster-whisper compileert niet, veel sneller
-echo ">>> Ondertitels (faster-whisper, optioneel)..."
-timeout 180 pip install --no-input faster-whisper -q 2>&1 | tail -2 || echo "Whisper overgeslagen (niet kritiek)"
-beacon "📝 Ondertitels-stap klaar"
+# (Ondertitels tijdelijk uitgeschakeld voor snelheid — later met faster-whisper)
 
-# 4. Assets ophalen (van GitHub release of meegegeven via env)
-# Assets worden meegegeven als base64 env vars door de orchestrator,
-# of gedownload van een vaste URL. Voor nu: check of ze al op het volume staan.
-echo ">>> Assets controleren..."
+# 4. Assets ophalen (met timeout zodat we nooit eindeloos hangen)
+echo ">>> Assets downloaden..."
 if [ ! -f assets/reference_voice.wav ] && [ -n "$ASSET_VOICE_URL" ]; then
-  wget -q "$ASSET_VOICE_URL" -O assets/reference_voice.wav
+  wget --timeout=60 --tries=3 -q "$ASSET_VOICE_URL" -O assets/reference_voice.wav || curl -sL --max-time 60 "$ASSET_VOICE_URL" -o assets/reference_voice.wav
 fi
 if [ ! -f assets/reference_clip.mp4 ] && [ -n "$ASSET_CLIP_URL" ]; then
-  wget -q "$ASSET_CLIP_URL" -O assets/reference_clip.mp4
+  wget --timeout=120 --tries=3 -q "$ASSET_CLIP_URL" -O assets/reference_clip.mp4 || curl -sL --max-time 120 "$ASSET_CLIP_URL" -o assets/reference_clip.mp4
 fi
+beacon "📥 Assets opgehaald ($(ls -la assets/ | wc -l) bestanden)"
 
 # 5. Avatar: simple ffmpeg-modus (geen zware modeldownloads nodig)
 export AVATAR_MODE=simple
