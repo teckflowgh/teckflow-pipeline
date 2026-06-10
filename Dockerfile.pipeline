@@ -37,9 +37,10 @@ RUN python3 -m venv /opt/venv_tts && \
     /opt/venv_tts/bin/pip install --no-cache-dir \
       "TTS==0.22.0" "transformers==4.40.2"
 
-# --- numpy ABI-fix: pin numpy 1.26 en hercompileer xtcocotools ertegen ---
-RUN pip install --no-cache-dir "numpy==1.26.4" && \
-    pip install --no-cache-dir --force-reinstall --no-binary xtcocotools xtcocotools
+# --- numpy ABI-fix: xtcocotools compileren tegen numpy 1.26.4 (geen build-isolation) ---
+RUN pip install --no-cache-dir "numpy==1.26.4" cython setuptools wheel && \
+    pip install --no-cache-dir --force-reinstall --no-build-isolation --no-binary xtcocotools xtcocotools && \
+    pip install --no-cache-dir "numpy==1.26.4"
 
 # --- Verificatie tijdens build: imports + xtcocotools C-extensie + pose-inference ---
 RUN python -c "import numpy; print('numpy', numpy.__version__); import mmcv, mmpose, mmdet, diffusers; import xtcocotools._mask; from mmpose.apis import init_model; print('MuseTalk-omgeving OK:', mmcv.__version__)"
