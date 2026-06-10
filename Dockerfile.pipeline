@@ -15,12 +15,12 @@ RUN apt-get update -y && apt-get install -y \
 
 # --- MuseTalk omgeving (basis python 3.10, bewezen versies) ---
 RUN pip install --no-cache-dir \
+    "huggingface_hub==0.22.2" \
     opencv-python imageio imageio-ffmpeg ffmpeg-python av runpod \
     transformers==4.39.2 diffusers==0.27.2 accelerate==0.28.0 omegaconf \
     mmpose mmdet moviepy soundfile \
     https://github.com/camenduru/wheels/releases/download/tost/mmcv-2.1.0-cp310-cp310-linux_x86_64.whl \
-    munch pydub phonemizer einops einops-exts nltk librosa \
-    huggingface_hub
+    munch pydub phonemizer einops einops-exts nltk librosa
 
 # --- MuseTalk code (modellen komen van het volume) ---
 RUN GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/TMElyralab/MuseTalk /opt/MuseTalk
