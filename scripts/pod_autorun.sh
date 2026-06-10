@@ -32,17 +32,19 @@ cd /workspace/project
 mkdir -p assets output logs data third_party
 beacon "📦 Project gekloond"
 
-# 3. Python dependencies
-echo ">>> PyTorch installeren..."
-pip install torch==2.4.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124 -q 2>/dev/null
-beacon "🔥 PyTorch klaar"
+# 3. Python dependencies (geen PyTorch nodig voor simple-avatar modus)
+echo ">>> Kern-packages installeren..."
+pip install --no-input python-dotenv requests anthropic google-api-python-client 'numpy==1.26.4' -q 2>&1 | tail -2
+beacon "🐍 Kern-packages klaar"
 
-echo ">>> Python packages installeren..."
-pip install fastapi==0.115.0 uvicorn 'pydantic==2.8.0' 'pydantic-settings==2.4.0' \
-  'pydantic-core==2.20.0' python-dotenv apscheduler requests httpx anthropic \
-  google-api-python-client aiofiles python-multipart rich gdown 'numpy==1.26.4' \
-  scipy openai-whisper pydub edge-tts -q 2>/dev/null
-beacon "🐍 Python packages klaar"
+echo ">>> Audio/video packages..."
+pip install --no-input edge-tts pydub pexels-api 'pydantic==2.8.0' -q 2>&1 | tail -2
+beacon "🔊 Audio packages klaar"
+
+# Whisper (ondertitels) optioneel — faster-whisper compileert niet, veel sneller
+echo ">>> Ondertitels (faster-whisper, optioneel)..."
+timeout 180 pip install --no-input faster-whisper -q 2>&1 | tail -2 || echo "Whisper overgeslagen (niet kritiek)"
+beacon "📝 Ondertitels-stap klaar"
 
 # 4. Assets ophalen (van GitHub release of meegegeven via env)
 # Assets worden meegegeven als base64 env vars door de orchestrator,
@@ -55,13 +57,9 @@ if [ ! -f assets/reference_clip.mp4 ] && [ -n "$ASSET_CLIP_URL" ]; then
   wget -q "$ASSET_CLIP_URL" -O assets/reference_clip.mp4
 fi
 
-# 5. SadTalker checkpoints (optioneel)
-echo ">>> SadTalker..."
-git clone -q https://github.com/OpenTalker/SadTalker third_party/SadTalker 2>/dev/null || true
-mkdir -p third_party/SadTalker/checkpoints
-wget -q --tries=2 --timeout=120 \
-  https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2-rc/SadTalker_V0.0.2_256.safetensors \
-  -O third_party/SadTalker/checkpoints/SadTalker_V0.0.2_256.safetensors 2>/dev/null || true
+# 5. Avatar: simple ffmpeg-modus (geen zware modeldownloads nodig)
+export AVATAR_MODE=simple
+echo ">>> Avatar-modus: simple (ffmpeg)"
 
 # 6. .env aanmaken uit env vars (meegegeven door RunPod)
 echo ">>> .env aanmaken..."

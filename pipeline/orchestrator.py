@@ -221,10 +221,21 @@ def run_pipeline(run_id: str | None = None) -> dict:
         logger.info("Stage 2 complete. Audio: %s", SPEECH_OUTPUT.name)
 
         # --- Stage 3: Avatar video ---
-        # Priority: LivePortrait (video ref) → SadTalker (image ref) → Wav2Lip (image ref)
+        # Priority: simple (ffmpeg, betrouwbaar) → LivePortrait → SadTalker → Wav2Lip
         t0 = _stage("stage3_avatar")
 
-        if REFERENCE_CLIP.exists():
+        avatar_mode = os.environ.get("AVATAR_MODE", "simple")
+
+        if avatar_mode == "simple" and REFERENCE_CLIP.exists():
+            # Betrouwbare ffmpeg-aanpak (geen lip-sync, wel jouw gezicht + stem)
+            from pipeline.stage3_avatar.simple_avatar import generate_simple_avatar
+            generate_simple_avatar(
+                audio_path=SPEECH_OUTPUT,
+                reference_clip=REFERENCE_CLIP,
+                output_path=AVATAR_OUTPUT,
+            )
+            logger.info("Stage 3 complete via simple_avatar (ffmpeg).")
+        elif REFERENCE_CLIP.exists():
             # Best quality: drive your own video clip with the generated audio
             try:
                 from pipeline.stage3_avatar.liveportrait_runner import generate_avatar_video
