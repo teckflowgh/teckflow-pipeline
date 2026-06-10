@@ -82,15 +82,12 @@ def main():
     talking = vids[0]
     beacon(f"🎬 Lip-sync klaar: {os.path.getsize(talking)//1024}KB")
 
-    # ---------- Stage 4: montage + ondertitels ----------
-    beacon("🎞️ Stage 4: B-roll montage + ondertitels...")
+    # ---------- Stage 4: montage v2 (9:16 fill + script-ondertitels + outro) ----------
+    beacon("🎞️ Stage 4: montage (9:16 + ondertitels + outro)...")
     os.chdir("/tmp/project")
-    from pipeline.stage4_assembly.video_assembler import assemble_final_video
-    final = assemble_final_video(
-        avatar_path=talking, audio_path="/tmp/speech.wav",
-        script=script, topic=topic, output_path="/tmp/final_video.mp4",
-        mode=mode, script_result=result, language="nl",
-    )
+    from pipeline.stage4_assembly.montage_v2 import assemble
+    final = assemble(talking_path=talking, script=script, topic=topic,
+                     output_path="/tmp/final_video.mp4")
     beacon(f"📦 Montage klaar: {os.path.getsize(final)//1024//1024}MB")
 
     # ---------- Afleveren ----------
